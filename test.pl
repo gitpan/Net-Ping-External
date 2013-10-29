@@ -21,7 +21,7 @@ print "ok 1\n";
 %test_names = (1 => "use Net::Ping::External qw(ping)",
 	       2 => "ping(host => '127.0.0.1')",
 	       3 => "ping(host => '127.0.0.1', timeout => 5)",
-	       4 => "ping(host => 'some.non.existent.host')",
+	       4 => "ping(host => 'some.non.existent.host.')",
 	       5 => "ping(host => '127.0.0.1', count => 10)",
 	       6 => "ping(host => '127.0.0.1', size => 32)"
 	      );
@@ -51,14 +51,25 @@ else {
   push @failed, 3;
 }
 
-eval { $ret = ping(host => 'some.non.existent.host') };
-if (!$@ && !$ret) {
-  print "ok 4\n";
-  push @passed, 4;
+sub inexistent_domain_do_not_resolve {
+  use Socket;
+  return 1 unless inet_aton('some.non.existent.host.');
+  return 0;
 }
-else {
-  print "not ok 4\n";
-  push @failed, 4;
+
+if (inexistent_domain_do_not_resolve()) {
+  eval { $ret = ping(host => 'some.non.existent.host.') };
+  if (!$@ && !$ret) {
+    print "ok 4\n";
+    push @passed, 4;
+  }
+  else {
+    print "not ok 4\n";
+    push @failed, 4;
+  }
+} else {
+  push @passed, 4;
+  print "ok 4 #skipped\n";
 }
 
 eval { $ret = ping(host => '127.0.0.1', count => 2) };

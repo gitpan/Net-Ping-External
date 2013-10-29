@@ -14,7 +14,7 @@ use Carp;
 use Socket qw(inet_ntoa);
 require Exporter;
 
-$VERSION = "0.13";
+$VERSION = "0.14";
 @ISA = qw(Exporter);
 @EXPORT = qw();
 @EXPORT_OK = qw(ping);
@@ -51,6 +51,7 @@ sub ping {
      netbsd   => \&_ping_netbsd,
      irix     => \&_ping_unix,
      aix      => \&_ping_aix,
+     svr5     => \&_ping_unix, #SCO OpenServer
     );
 
   my $subref = $dispatch{lc $^O};
@@ -222,6 +223,13 @@ sub _ping_freebsd {
 #No timeout
 #Usage:  ping [-dfqrv] host [packetsize [count [preload]]]
 sub _ping_cygwin {
+  my $which_ping = `which ping`;
+  if (!$which_ping) {
+    return;
+  }
+  if ($which_ping =~ m#/cygdrive/c/WINDOWS/SYSTEM32/ping#) {
+    return _ping_win32(@_);
+  }
   my %args = @_;
   my $command = "ping $args{host} $args{size} $args{count}";
   return _ping_system($command, 0);
@@ -234,7 +242,7 @@ __END__
 
 =head1 NAME
 
-Net::Ping::External - Cross-platform interface to ICMP "ping" utilities
+Net::Ping::External - Cross-platform Perl interface to "ping" utilities
 
 =head1 SYNOPSIS
 
