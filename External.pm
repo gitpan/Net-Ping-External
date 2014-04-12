@@ -6,15 +6,15 @@ package Net::Ping::External;
 # Copyright (c) 2001-2003 Colin McMillen.  All rights reserved.  This
 # program is free software; you may redistribute it and/or modify it
 # under the same terms as Perl itself.
-# Copyright (c) 2006-2008 Alexandr Ciornii
+# Copyright (c) 2006-2014 Alexandr Ciornii
 
 use strict;
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $DEBUG);
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $DEBUG $DEBUG_OUTPUT $LAST_OUTPUT $LAST_EXIT_CODE);
 use Carp;
 use Socket qw(inet_ntoa);
 require Exporter;
 
-$VERSION = "0.14";
+$VERSION = "0.15";
 @ISA = qw(Exporter);
 @EXPORT = qw();
 @EXPORT_OK = qw(ping);
@@ -46,6 +46,7 @@ sub ping {
      darwin   => \&_ping_darwin,
      openbsd  => \&_ping_unix,
      freebsd  => \&_ping_freebsd,
+     midnightbsd => \&_ping_freebsd,
      next     => \&_ping_next,
      unicosmk => \&_ping_unicosmk,
      netbsd   => \&_ping_netbsd,
@@ -68,8 +69,10 @@ sub _ping_win32 {
   $args{timeout} *= 1000;    # Win32 ping timeout is specified in milliseconds
   #for each ping
   my $command = "ping -l $args{size} -n $args{count} -w $args{timeout} $args{host}";
-  print "$command\n" if $DEBUG;
+  print "#$command\n"  if $DEBUG;
   my $result = `$command`;
+  $LAST_OUTPUT = $result if $DEBUG_OUTPUT;
+  $LAST_EXIT_CODE = $!;
   return 1 if $result =~ /time.*ms/;
   return 1 if $result =~ /TTL/;
   return 1 if $result =~ /is alive/; # ppt (from CPAN) ping
@@ -82,14 +85,16 @@ sub _ping_win32 {
 # name)
 # Thanks to Peter N. Lewis for this one.
 sub _ping_darwin {
-   my %args = @_;
-   my $command = "ping -s $args{size} -c $args{count} $args{host}";
-   my $devnull = "/dev/null";
-   $command .= " 2>$devnull";
-   print "$command\n" if $DEBUG;
-   my $result = `$command`;
-   return 1 if $result =~ /(\d+) packets received/ && $1 > 0;
-   return 0;
+  my %args = @_;
+  my $command = "ping -s $args{size} -c $args{count} $args{host}";
+  my $devnull = "/dev/null";
+  $command .= " 2>$devnull";
+  print "#$command\n" if $DEBUG;
+  my $result = `$command`;
+  $LAST_OUTPUT = $result if $DEBUG_OUTPUT;
+  $LAST_EXIT_CODE = $!;
+  return 1 if $result =~ /(\d+) packets received/ && $1 > 0;
+  return 0;
 }
 
 # Generic subroutine to handle pinging using the system() function. Generally,
@@ -103,7 +108,8 @@ sub _ping_system {
   my $devnull = "/dev/null";
   $command .= " 1>$devnull 2>$devnull";
   print "#$command\n" if $DEBUG;
-  my $exit_status = system($command) >> 8;
+  $LAST_EXIT_CODE = system($command);
+  my $exit_status = $LAST_EXIT_CODE  >> 8;
   return 1 if $exit_status == $success;
   return 0;
 }
@@ -227,14 +233,13 @@ sub _ping_cygwin {
   if (!$which_ping) {
     return;
   }
-  if ($which_ping =~ m#/cygdrive/c/WINDOWS/SYSTEM32/ping#) {
+  if ($which_ping =~ m#/cygdrive/\w/WINDOWS/SYSTEM32/ping#i) {
     return _ping_win32(@_);
   }
   my %args = @_;
   my $command = "ping $args{host} $args{size} $args{count}";
   return _ping_system($command, 0);
 }
-#Problem is that we may be running windows ping
 
 1;
 
